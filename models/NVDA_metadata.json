@@ -1,0 +1,22 @@
+{
+  "ticker": "NVDA",
+  "training_date": "2026-09-25",
+  "latest_training_data_date": "2026-09-24",
+  "features": [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
+  ],
+  "lookback": 60,
+  "metrics": {
+    "mae": 35.7519,
+    "mse": 1447.3738,
+    "rmse": 38.0444,
+    "mape": 17.4
+  },
+  "epochs_completed": 5,
+  "training_samples": 836,
+  "testing_samples": 180
+}

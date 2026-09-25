@@ -1,0 +1,22 @@
+{
+  "ticker": "RELIANCE.NS",
+  "training_date": "2026-09-25",
+  "latest_training_data_date": "2026-09-23",
+  "features": [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
+  ],
+  "lookback": 60,
+  "metrics": {
+    "mae": 28.1327,
+    "mse": 1209.3513,
+    "rmse": 34.7757,
+    "mape": 2.09
+  },
+  "epochs_completed": 20,
+  "training_samples": 826,
+  "testing_samples": 177
+}

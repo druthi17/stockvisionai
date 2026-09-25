@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockVision AI – Stock Market Analytics & Next-Day Forecasting</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="app-header">
+            <div class="brand-logo">
+                <i class="fa-solid fa-chart-line brand-icon"></i>
+                <div class="brand-text">
+                    <h1>StockVision <span>AI</span></h1>
+                    <p class="tagline">Deep Learning Stock Analytics & Next-Day Price Forecasting</p>
+                </div>
+            </div>
+            <div class="header-badges">
+                <span class="badge badge-tech"><i class="fa-solid fa-brain"></i> LSTM Neural Net</span>
+                <span class="badge badge-live"><i class="fa-solid fa-circle pulse-dot"></i> yfinance Engine</span>
+            </div>
+        </header>
+
+        <!-- Main Search & Toolbar Section -->
+        <section class="search-section card">
+            <div class="search-form-wrapper">
+                <form id="search-form" class="search-form">
+                    <div class="input-group">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="ticker-input" placeholder="Enter ticker symbol (e.g. AAPL, MSFT, RELIANCE.NS, TCS.NS, NVDA)" autocomplete="off" required>
+                        <button type="submit" id="search-btn" class="btn btn-primary">
+                            <span id="btn-text"><i class="fa-solid fa-bolt"></i> Analyze Stock</span>
+                            <span id="btn-spinner" class="spinner hidden"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Display Currency Selector Toggle -->
+                <div class="currency-toggle-wrapper">
+                    <span class="toggle-label"><i class="fa-solid fa-coins"></i> Display Currency:</span>
+                    <div class="toggle-switch">
+                        <input type="radio" id="curr-native" name="display-currency" value="native" checked>
+                        <label for="curr-native" id="native-curr-label">Native Currency</label>
+                        <input type="radio" id="curr-inr" name="display-currency" value="inr">
+                        <label for="curr-inr">Indian Rupees (₹ INR)</label>
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Search Chips -->
+            <div class="recent-searches-container">
+                <span class="recent-label"><i class="fa-solid fa-clock-rotate-left"></i> Recent Searches:</span>
+                <div id="recent-chips" class="chips-wrapper">
+                    <!-- Chips inserted dynamically via script.js -->
+                    <span class="chip-empty">No recent searches</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Status & Error Alert Container -->
+        <div id="alert-box" class="alert alert-error hidden">
+            <i class="fa-solid fa-circle-exclamation alert-icon"></i>
+            <span id="alert-message">Error message here</span>
+            <button class="alert-close" onclick="hideAlert()">&times;</button>
+        </div>
+
+        <!-- Global Loading Indicator Modal Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-card">
+                <div class="loading-spinner"></div>
+                <h3 id="loading-title">Analyzing Market Data...</h3>
+                <p id="loading-subtitle">Fetching 5-year historical price data from exchange...</p>
+                <div class="loading-progress-bar">
+                    <div id="loading-progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Workspace (Visible after first search) -->
+        <main id="dashboard-content" class="dashboard-content hidden">
+            
+            <!-- Conversion Warning Banner (Visible when foreign stock converted to INR) -->
+            <div id="conversion-banner" class="conversion-banner hidden">
+                <i class="fa-solid fa-circle-info"></i>
+                <span id="conversion-banner-text">Prices are presented in INR (₹) converted from USD at 1 USD = ₹83.50. Predictions are performed natively in the original stock currency.</span>
+            </div>
+
+            <!-- Summary KPI Metric Cards Grid -->
+            <div class="kpi-grid">
+                <!-- Card 1: Company Info -->
+                <div class="kpi-card card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Company Info</span>
+                        <i class="fa-solid fa-building kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <h2 id="kpi-company-name">--</h2>
+                        <div class="company-meta">
+                            <span id="kpi-ticker-badge" class="pill pill-ticker">--</span>
+                            <span id="kpi-exchange-badge" class="pill pill-exchange">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Current Market Price -->
+                <div class="kpi-card card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Current Price</span>
+                        <i class="fa-solid fa-dollar-sign kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <h2 id="kpi-current-price">--</h2>
+                        <div class="kpi-subtext" id="kpi-price-change-wrapper">
+                            <span id="kpi-price-change">--</span>
+                            <span class="sub-label">vs Prev Close (<span id="kpi-prev-close">--</span>)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Next Day LSTM Prediction -->
+                <div class="kpi-card card card-accent">
+                    <div class="kpi-header">
+                        <span class="kpi-title">LSTM Forecast (Next Day)</span>
+                        <i class="fa-solid fa-wand-magic-sparkles kpi-icon accent-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <h2 id="kpi-predicted-price" class="accent-text">--</h2>
+                        <div class="kpi-subtext">
+                            <span id="kpi-predicted-change">--</span>
+                            <span class="sub-label">Est. Trading Date: <strong id="kpi-forecast-date">--</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: Error Range -->
+                <div class="kpi-card card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Forecast Error Range</span>
+                        <i class="fa-solid fa-arrows-left-right-to-line kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <h2 id="kpi-error-range">--</h2>
+                        <p class="range-subtext"><i class="fa-solid fa-shield-halved"></i> Based on test residual RMSE (±<span id="kpi-rmse-val">--</span>)</p>
+                    </div>
+                </div>
+
+                <!-- Card 5: 52-Week Range -->
+                <div class="kpi-card card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">52-Week High / Low</span>
+                        <i class="fa-solid fa-arrows-up-down kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="range-flex">
+                            <div>
+                                <span class="range-lbl">High</span>
+                                <div id="kpi-52-high" class="range-val green-text">--</div>
+                            </div>
+                            <div>
+                                <span class="range-lbl">Low</span>
+                                <div id="kpi-52-low" class="range-val red-text">--</div>
+                            </div>
+                        </div>
+                        <div class="volume-meta">
+                            <span><i class="fa-solid fa-chart-column"></i> Volume: <strong id="kpi-volume">--</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 6: Model Status -->
+                <div class="kpi-card card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Model Cache Status</span>
+                        <i class="fa-solid fa-database kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <span id="kpi-model-badge" class="badge badge-cached">--</span>
+                        <div class="cache-meta">
+                            <p>Last Trained: <strong id="kpi-last-trained">--</strong></p>
+                            <p>Epochs Trained: <strong id="kpi-epochs">--</strong></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historical Price Chart Panel -->
+            <section class="chart-section card">
+                <div class="section-header">
+                    <div>
+                        <h2><i class="fa-solid fa-chart-candlestick"></i> Historical Market Trends & Indicators</h2>
+                        <p class="section-desc">Interactive price chart with technical moving averages</p>
+                    </div>
+                    <div class="chart-controls">
+                        <div class="timeframe-selector">
+                            <button class="tf-btn" data-tf="1M">1M</button>
+                            <button class="tf-btn" data-tf="3M">3M</button>
+                            <button class="tf-btn" data-tf="6M">6M</button>
+                            <button class="tf-btn active" data-tf="1Y">1Y</button>
+                            <button class="tf-btn" data-tf="5Y">5Y</button>
+                        </div>
+                        <div class="indicator-toggles">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="toggle-sma20" checked>
+                                <span class="custom-checkbox color-sma20"></span> SMA 20
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="toggle-sma50" checked>
+                                <span class="custom-checkbox color-sma50"></span> SMA 50
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Technical Indicators & Model Performance Grid -->
+            <div class="analytics-grid">
+                <!-- Technical Indicators Panel -->
+                <section class="card analytics-card">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-gauge-high"></i> Technical Market Indicators</h2>
+                    </div>
+                    <div class="indicators-grid">
+                        <div class="ind-box">
+                            <span class="ind-name">SMA 20</span>
+                            <span id="ind-sma20" class="ind-value">--</span>
+                            <span class="ind-desc">20-Day Simple Moving Avg</span>
+                        </div>
+                        <div class="ind-box">
+                            <span class="ind-name">SMA 50</span>
+                            <span id="ind-sma50" class="ind-value">--</span>
+                            <span class="ind-desc">50-Day Simple Moving Avg</span>
+                        </div>
+                        <div class="ind-box">
+                            <span class="ind-name">EMA 20</span>
+                            <span id="ind-ema20" class="ind-value">--</span>
+                            <span class="ind-desc">20-Day Exponential Moving Avg</span>
+                        </div>
+                        <div class="ind-box">
+                            <span class="ind-name">RSI 14</span>
+                            <div class="rsi-wrapper">
+                                <span id="ind-rsi14" class="ind-value">--</span>
+                                <span id="rsi-badge" class="rsi-badge">--</span>
+                            </div>
+                            <span class="ind-desc">Relative Strength Index</span>
+                        </div>
+                        <div class="ind-box">
+                            <span class="ind-name">MACD Line</span>
+                            <span id="ind-macd" class="ind-value">--</span>
+                            <span class="ind-desc">12 / 26 EMA Difference</span>
+                        </div>
+                        <div class="ind-box">
+                            <span class="ind-name">MACD Signal</span>
+                            <span id="ind-macd-signal" class="ind-value">--</span>
+                            <span class="ind-desc">9-Period Signal Line</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Model Performance Panel -->
+                <section class="card analytics-card">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-microchip"></i> Model Performance & Architecture</h2>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-box">
+                            <span class="metric-lbl">MAE (Mean Absolute Error)</span>
+                            <span id="metric-mae" class="metric-val">--</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-lbl">RMSE (Root Mean Sq. Error)</span>
+                            <span id="metric-rmse" class="metric-val">--</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-lbl">MAPE (Mean Abs. % Error)</span>
+                            <span id="metric-mape" class="metric-val">--</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-lbl">MSE (Mean Squared Error)</span>
+                            <span id="metric-mse" class="metric-val">--</span>
+                        </div>
+                    </div>
+                    <div class="model-specs">
+                        <div class="spec-row">
+                            <span><i class="fa-solid fa-clock-rotate-left"></i> Lookback Window:</span>
+                            <strong>60 Trading Days</strong>
+                        </div>
+                        <div class="spec-row">
+                            <span><i class="fa-solid fa-layer-group"></i> Neural Architecture:</span>
+                            <strong>LSTM (64) → Dropout (0.2) → LSTM (32) → Dropout (0.2) → Dense (16) → Dense (1)</strong>
+                        </div>
+                        <div class="spec-row">
+                            <span><i class="fa-solid fa-sliders"></i> Dataset Split:</span>
+                            <span>Train: <strong id="spec-train-samples">--</strong> | Test: <strong id="spec-test-samples">--</strong></span>
+                        </div>
+                        <div class="spec-row">
+                            <span><i class="fa-solid fa-filter"></i> Scaler Normalization:</span>
+                            <strong>MinMaxScaler [0, 1] (Train Split Only)</strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Stock Comparison Tool (Feature #22) -->
+            <section class="comparison-section card">
+                <div class="section-header">
+                    <div>
+                        <h2><i class="fa-solid fa-code-compare"></i> Multi-Stock Relative Performance Comparison</h2>
+                        <p class="section-desc">Compare 1-year percentage returns of up to 3 stocks normalized to a 0% baseline</p>
+                    </div>
+                </div>
+                <div class="comparison-controls">
+                    <div class="comp-input-group">
+                        <input type="text" id="comp-ticker-1" placeholder="Stock 1 (e.g. AAPL)" class="comp-input">
+                        <input type="text" id="comp-ticker-2" placeholder="Stock 2 (e.g. MSFT)" class="comp-input">
+                        <input type="text" id="comp-ticker-3" placeholder="Stock 3 (e.g. GOOGL)" class="comp-input">
+                        <button id="comp-btn" class="btn btn-secondary">
+                            <i class="fa-solid fa-scale-balanced"></i> Compare Stocks
+                        </button>
+                    </div>
+                </div>
+                <div class="comparison-chart-container">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </section>
+
+            <!-- How the Prediction Works (Explainability Section) -->
+            <section class="explainability-section card">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-lightbulb"></i> How the Prediction Works</h2>
+                    <p class="section-desc">Understand the 6-stage end-to-end Machine Learning Pipeline</p>
+                </div>
+                <div class="workflow-steps">
+                    <div class="step-card">
+                        <div class="step-num">1</div>
+                        <h4>Data Fetching</h4>
+                        <p>5 years of daily historical data (Open, High, Low, Close, Volume) downloaded via yfinance.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">2</div>
+                        <h4>Feature Scaling</h4>
+                        <p>MinMaxScaler scales features to [0, 1] fitted strictly on training data to prevent leakage.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">3</div>
+                        <h4>Sequence Building</h4>
+                        <p>Sliding window of 60 trading days maps temporal patterns to predict day 61 closing price.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">4</div>
+                        <h4>LSTM Network</h4>
+                        <p>2 stacked LSTM layers (64 & 32 units) capture non-linear temporal dynamics and trends.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">5</div>
+                        <h4>Inverse Transform</h4>
+                        <p>Predicted value is converted from [0, 1] scale back into native currency price.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">6</div>
+                        <h4>Smart Caching</h4>
+                        <p>Models and scalers are cached on disk to avoid redundant retraining within 3 days.</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Educational Disclaimer Footer Banner -->
+        <footer class="app-footer card">
+            <div class="disclaimer-container">
+                <i class="fa-solid fa-triangle-exclamation disclaimer-icon"></i>
+                <div class="disclaimer-text">
+                    <h4>Educational Project Disclaimer</h4>
+                    <p>This project demonstrates deep-learning-based time-series forecasting for educational purposes. Stock prices are affected by many macroeconomic, fundamental, and market sentiment factors that historical price data alone cannot capture. Predictions are mathematical estimates and must <strong>never</strong> be treated as financial or investment advice.</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 StockVision AI Engine – Built with Flask, TensorFlow/Keras & Chart.js</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Main JavaScript Logic -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
